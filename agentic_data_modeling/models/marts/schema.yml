@@ -1,0 +1,974 @@
+version: 2
+
+models:
+  - name: fct_jobs
+    description: >
+      One row per job. Combines job status, time/effort metrics, revenue,
+      payout totals, adjustment totals, and denormalised attributes from
+      the service, contractor, and customer dimensions.
+
+    columns:
+
+      # ----------------------------------------------------------------
+      # Keys
+      # ----------------------------------------------------------------
+      - name: job_id
+        description: Primary key — unique identifier for each job.
+        tests:
+          - unique
+          - not_null
+
+      - name: service_id
+        description: FK to dim_services.
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_services')
+                field: service_id
+
+      - name: contractor_id
+        description: FK to dim_contractors.
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_contractors')
+                field: contractor_id
+
+      - name: customer_id
+        description: FK to dim_users.
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_users')
+                field: user_id
+
+      # ----------------------------------------------------------------
+      # Timestamps
+      # ----------------------------------------------------------------
+      - name: requested_at
+        description: When the customer placed the job request.
+        tests:
+          - not_null
+
+      - name: completed_at
+        description: >
+          When the job was completed. NULL for canceled jobs — intentional,
+          not a data quality issue.
+
+      # ----------------------------------------------------------------
+      # Job status
+      # ----------------------------------------------------------------
+      - name: job_status
+        description: Normalised job status string.
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['completed', 'canceled_by_customer', 'canceled_by_contractor']
+
+      - name: is_completed
+        description: True when job_status = 'completed'.
+        tests:
+          - not_null
+
+      - name: is_canceled
+        description: True when job was canceled by either party.
+        tests:
+          - not_null
+
+      - name: canceled_by
+        description: >
+          Which party canceled the job ('customer' or 'contractor').
+          NULL for completed jobs — accepted_values ignores NULLs by default.
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['customer', 'contractor']
+
+      # ----------------------------------------------------------------
+      # Time / effort metrics
+      # ----------------------------------------------------------------
+      - name: estimated_hours
+        description: Contractor's upfront hour estimate.
+        tests:
+          - not_null
+
+      # actual_hours, hours_variance, job_duration_hours are NULL for
+      # canceled jobs — no not_null test applied.
+
+      # ----------------------------------------------------------------
+      # Revenue
+      # ----------------------------------------------------------------
+      # gross_amount_usd and net_revenue_usd are NULL for canceled jobs —
+      # no not_null test applied.
+
+      # ----------------------------------------------------------------
+      # Adjustments (coalesced to 0, always populated)
+      # ----------------------------------------------------------------
+      - name: total_refund_usd
+        description: Sum of all refund adjustments against this job (0 when none).
+        tests:
+          - not_null
+
+      - name: total_bonus_usd
+        description: Sum of all goodwill bonus adjustments against this job (0 when none).
+        tests:
+          - not_null
+
+      - name: adjustment_count
+        description: Number of adjustment records attached to this job (0 when none).
+        tests:
+          - not_null
+
+      - name: has_full_refund
+        description: True if any adjustment was a full refund.
+        tests:
+          - not_null
+
+      # ----------------------------------------------------------------
+      # Denormalised service attributes
+      # ----------------------------------------------------------------
+      - name: service_category
+        description: Category of the service (e.g. plumbing, cleaning).
+        tests:
+          - not_null
+
+      - name: rate_tier
+        description: Pricing tier of the service listing.
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['budget', 'mid_range', 'premium']
+
+      - name: hourly_rate_usd
+        description: Hourly rate on the service listing at the time of the job.
+        tests:
+          - not_null
+
+      # ----------------------------------------------------------------
+      # Denormalised contractor attributes
+      # ----------------------------------------------------------------
+      - name: contractor_tier
+        description: Contractor's tier classification.
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['standard', 'premium']
+
+      - name: is_premium_tier
+        description: True when contractor_tier = 'premium'.
+        tests:
+          - not_null
+
+      - name: contractor_commission_rate
+        description: Commission rate applied to this contractor at job time.
+        tests:
+          - not_null
+
+      # ----------------------------------------------------------------
+      # Denormalised customer attributes
+      # ----------------------------------------------------------------
+      - name: customer_city
+        description: City of the customer who placed the job.
+        tests:
+          - not_null
+
+      - name: customer_account_status
+        description: Account status of the customer at query time.
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['active', 'inactive', 'suspended']
+
+  # ----------------------------------------------------------------
+  # DIMENSIONS
+  # ----------------------------------------------------------------
+
+  - name: dim_contractors
+    description: >
+      One row per contractor. Combines contractor-specific attributes
+      (tier, commission, eligibility) with base user attributes (city,
+      account status).
+
+    columns:
+      - name: contractor_id
+        description: Primary key.
+        tests:
+          - unique
+          - not_null
+
+      - name: contractor_tier
+        description: Tier classification for the contractor.
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['standard', 'premium']
+
+      - name: is_premium_tier
+        description: True when contractor_tier = 'premium'.
+        tests:
+          - not_null
+
+      - name: commission_rate
+        description: Decimal commission rate (e.g. 0.15).
+        tests:
+          - not_null
+
+      - name: commission_rate_pct
+        description: Commission rate expressed as a percentage.
+        tests:
+          - not_null
+
+      - name: onboarding_completed
+        description: True if the contractor has completed the platform onboarding process.
+        tests:
+          - not_null
+
+      - name: background_check_passed
+        description: True if the contractor's background check has been cleared by the platform.
+        tests:
+          - not_null
+
+      - name: is_eligible_to_work
+        description: True when onboarding and background check are both complete.
+        tests:
+          - not_null
+
+      - name: signup_at
+        description: Timestamp when the contractor registered on the platform.
+        tests:
+          - not_null
+
+      - name: is_active
+        description: True if the contractor's account is in good standing.
+        tests:
+          - not_null
+
+      - name: is_suspended
+        description: True if the contractor's account has been suspended by the platform.
+        tests:
+          - not_null
+
+      - name: account_status
+        description: >
+          Derived account status label: 'suspended' takes precedence over
+          'active', which takes precedence over 'inactive'.
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['active', 'inactive', 'suspended']
+
+      - name: city
+        description: City where the contractor is based.
+        tests:
+          - not_null
+
+  - name: dim_services
+    description: >
+      One row per service listing. A contractor may have multiple listings
+      across different categories or rate tiers.
+
+    columns:
+      - name: service_id
+        description: Primary key.
+        tests:
+          - unique
+          - not_null
+
+      - name: contractor_id
+        description: FK to dim_contractors — the contractor who offers this service.
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_contractors')
+                field: contractor_id
+
+      - name: service_category
+        description: Normalised service category (e.g. cleaning, plumbing, landscaping, electrical).
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['cleaning', 'plumbing', 'landscaping', 'electrical']
+
+      - name: hourly_rate_usd
+        description: Advertised hourly rate for this service listing in USD.
+        tests:
+          - not_null
+
+      - name: rate_tier
+        description: >
+          Pricing tier bucket derived from hourly_rate_usd: budget (<$75/hr),
+          mid_range ($75–$124), premium ($125+).
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['budget', 'mid_range', 'premium']
+
+      - name: created_at
+        description: Timestamp when the contractor created this service listing.
+        tests:
+          - not_null
+
+      - name: is_available
+        description: True if the contractor is currently accepting bookings for this service.
+        tests:
+          - not_null
+
+  - name: dim_users
+    description: One row per user (customer).
+
+    columns:
+      - name: user_id
+        description: Primary key.
+        tests:
+          - unique
+          - not_null
+
+      - name: signup_at
+        description: Timestamp when the user registered on the platform.
+        tests:
+          - not_null
+
+      - name: is_active
+        description: True if the user's account is in good standing.
+        tests:
+          - not_null
+
+      - name: is_suspended
+        description: True if the user's account has been suspended by the platform.
+        tests:
+          - not_null
+
+      - name: account_status
+        description: >
+          Derived account status label: 'suspended' takes precedence over
+          'active', which takes precedence over 'inactive'.
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['active', 'inactive', 'suspended']
+
+      - name: city
+        description: City where the user is located, with leading/trailing whitespace trimmed.
+        tests:
+          - not_null
+
+  # ----------------------------------------------------------------
+  # FACT TABLES
+  # ----------------------------------------------------------------
+
+  - name: fct_payouts
+    description: >
+      One row per payout. Payout amounts reflect pre-payout adjustments
+      (refunds deducted, bonuses added), so implied_gross_usd may differ
+      from the job's gross_amount_usd.
+
+    columns:
+      - name: payout_id
+        description: Primary key.
+        tests:
+          - unique
+          - not_null
+
+      - name: contractor_id
+        description: FK to dim_contractors.
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_contractors')
+                field: contractor_id
+
+      - name: job_id
+        description: FK to fct_jobs.
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('fct_jobs')
+                field: job_id
+
+      - name: paid_at
+        description: Timestamp when the payout was processed and disbursed.
+        tests:
+          - not_null
+
+      - name: commission_rate
+        description: Platform commission rate applied to this payout (e.g. 0.15 = 15%).
+        tests:
+          - not_null
+
+      - name: payout_amount_usd
+        description: Amount paid to the contractor in USD after platform commission is deducted.
+        tests:
+          - not_null
+
+      - name: implied_gross_usd
+        description: >
+          Gross job amount implied by back-calculating from payout_amount_usd and
+          commission_rate. May differ from fct_jobs.gross_amount_usd when
+          pre-payout adjustments were applied.
+        tests:
+          - not_null
+
+      - name: platform_fee_usd
+        description: Platform's take — the difference between implied_gross_usd and payout_amount_usd.
+        tests:
+          - not_null
+
+      - name: payout_status
+        description: Normalised payout status — 'completed' once disbursed, 'pending' while awaiting processing.
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['completed', 'pending']
+
+      - name: is_pending
+        description: True when payout_status = 'pending' — the payout has been calculated but not yet disbursed.
+        tests:
+          - not_null
+
+      - name: service_id
+        description: Denormalised FK to the service listing booked for the parent job.
+        tests:
+          - not_null
+
+      - name: customer_id
+        description: Denormalised FK to the customer who placed the parent job.
+        tests:
+          - not_null
+
+      - name: job_requested_at
+        description: Timestamp when the parent job was originally requested by the customer.
+        tests:
+          - not_null
+
+      - name: job_gross_amount_usd
+        description: Gross revenue of the parent job in USD (hourly_rate × actual_hours).
+        tests:
+          - not_null
+
+      - name: contractor_tier
+        description: Contractor's tier classification at the time of the payout.
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['standard', 'premium']
+
+      - name: is_premium_tier
+        description: True when contractor_tier = 'premium'.
+        tests:
+          - not_null
+
+  - name: fct_adjustments
+    description: >
+      One row per adjustment (refund or goodwill bonus) against a completed job.
+      signed_amount_usd is negative for refunds (debit) and positive for bonuses
+      (credit).
+
+    columns:
+      - name: adjustment_id
+        description: Primary key.
+        tests:
+          - unique
+          - not_null
+
+      - name: job_id
+        description: FK to fct_jobs — the job this adjustment is against.
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('fct_jobs')
+                field: job_id
+
+      - name: adjusted_at
+        description: Timestamp when the adjustment was issued against the job.
+        tests:
+          - not_null
+
+      - name: adjustment_type
+        description: Normalised adjustment type — full_refund, partial_refund, or goodwill_bonus.
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['partial_refund', 'full_refund', 'goodwill_bonus']
+
+      - name: adjustment_direction
+        description: >
+          Financial direction of the adjustment: 'debit' reduces customer charges
+          (refunds), 'credit' increases contractor pay (goodwill bonuses).
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['debit', 'credit']
+
+      - name: is_refund
+        description: True when the adjustment is either a full or partial refund back to the customer.
+        tests:
+          - not_null
+
+      - name: is_full_refund
+        description: True when the entire job amount was refunded to the customer.
+        tests:
+          - not_null
+
+      - name: is_partial_refund
+        description: True when only part of the job amount was refunded to the customer.
+        tests:
+          - not_null
+
+      - name: is_goodwill_bonus
+        description: True when the adjustment is a discretionary bonus paid to the contractor.
+        tests:
+          - not_null
+
+      - name: adjustment_amount_usd
+        description: >
+          Absolute monetary value of the adjustment in USD. Always positive —
+          direction is encoded separately in adjustment_direction and signed_amount_usd.
+        tests:
+          - not_null
+
+      - name: signed_amount_usd
+        description: >
+          Signed value of the adjustment: negative for refunds (debit), positive
+          for goodwill bonuses (credit). Used for net financial calculations.
+        tests:
+          - not_null
+
+      - name: service_id
+        description: Denormalised FK to the service listing booked for the parent job.
+        tests:
+          - not_null
+
+      - name: contractor_id
+        description: Denormalised FK to the contractor who performed the parent job.
+        tests:
+          - not_null
+
+      - name: customer_id
+        description: Denormalised FK to the customer who placed the parent job.
+        tests:
+          - not_null
+
+      - name: job_gross_amount_usd
+        description: Gross revenue of the parent job in USD (hourly_rate × actual_hours).
+        tests:
+          - not_null
+
+      - name: job_requested_at
+        description: Timestamp when the parent job was originally requested.
+        tests:
+          - not_null
+
+      - name: job_completed_at
+        description: Timestamp when the parent job was completed (adjustments only exist on completed jobs).
+        tests:
+          - not_null
+
+      - name: service_category
+        description: Category of the service that was booked for the parent job.
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['cleaning', 'plumbing', 'landscaping', 'electrical']
+
+      - name: contractor_tier
+        description: Tier classification of the contractor who performed the parent job.
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['standard', 'premium']
+
+  # ----------------------------------------------------------------
+  # MART / SUMMARY MODELS
+  # ----------------------------------------------------------------
+
+  - name: contractor_performance_summary
+    description: >
+      One row per contractor. Operational scorecard combining volume, quality,
+      earnings, and service breadth. Rate/average metrics are NULL for
+      contractors who have never had a job — this is intentional.
+
+    columns:
+      - name: contractor_id
+        description: Primary key — one row per contractor.
+        tests:
+          - unique
+          - not_null
+
+      - name: contractor_tier
+        description: Contractor's tier classification — standard or premium.
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['standard', 'premium']
+
+      - name: is_premium_tier
+        description: True when contractor_tier = 'premium'.
+        tests:
+          - not_null
+
+      - name: commission_rate
+        description: Platform commission rate for this contractor (e.g. 0.15 = 15%).
+        tests:
+          - not_null
+
+      - name: is_eligible_to_work
+        description: True when the contractor has both completed onboarding and passed the background check.
+        tests:
+          - not_null
+
+      - name: city
+        description: City where the contractor is based.
+        tests:
+          - not_null
+
+      - name: signup_at
+        description: Timestamp when the contractor registered on the platform.
+        tests:
+          - not_null
+
+      # Volume counts are coalesced to 0 — always populated.
+      - name: total_jobs
+        description: Total number of jobs assigned to this contractor (completed + canceled).
+        tests:
+          - not_null
+
+      - name: completed_jobs
+        description: Number of jobs this contractor successfully completed.
+        tests:
+          - not_null
+
+      - name: canceled_jobs
+        description: Total number of jobs canceled by either party involving this contractor.
+        tests:
+          - not_null
+
+      - name: contractor_cancellations
+        description: Number of jobs this contractor canceled themselves.
+        tests:
+          - not_null
+
+      - name: customer_cancellations
+        description: Number of jobs involving this contractor that were canceled by the customer.
+        tests:
+          - not_null
+
+      # Revenue totals are coalesced to 0 — always populated.
+      - name: total_gross_usd
+        description: Sum of gross job revenue (hourly_rate × actual_hours) across all completed jobs.
+        tests:
+          - not_null
+
+      - name: total_net_revenue_usd
+        description: Sum of net revenue after refunds across all completed jobs.
+        tests:
+          - not_null
+
+      - name: total_earned_usd
+        description: Total amount paid out to the contractor after platform commission.
+        tests:
+          - not_null
+
+      - name: jobs_with_refunds
+        description: Number of this contractor's completed jobs that had at least one refund issued.
+        tests:
+          - not_null
+
+      - name: total_refunded_usd
+        description: Total USD value refunded to customers across this contractor's jobs.
+        tests:
+          - not_null
+
+      # Service breadth counts are coalesced to 0 — always populated.
+      - name: total_services
+        description: Total number of service listings this contractor has created.
+        tests:
+          - not_null
+
+      - name: available_services
+        description: Number of this contractor's service listings currently open for bookings.
+        tests:
+          - not_null
+
+      - name: service_category_count
+        description: Number of distinct service categories this contractor is listed in.
+        tests:
+          - not_null
+
+      # completion_rate_pct, contractor_cancel_rate_pct, avg_job_gross_usd,
+      # refund_rate_pct, avg_hours_variance, first_job_at, last_completed_at
+      # are NULL for contractors with no jobs — no not_null test applied.
+
+  - name: customer_health_summary
+    description: >
+      One row per customer. RFM-style health scorecard. Rate/average/timestamp
+      metrics are NULL for customers who have never placed a job — intentional.
+
+    columns:
+      - name: customer_id
+        description: Primary key — one row per customer.
+        tests:
+          - unique
+          - not_null
+
+      - name: city
+        description: City where the customer is located.
+        tests:
+          - not_null
+
+      - name: account_status
+        description: >
+          Derived account status label: 'suspended' takes precedence over
+          'active', which takes precedence over 'inactive'.
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['active', 'inactive', 'suspended']
+
+      - name: is_active
+        description: True if the customer's account is in good standing.
+        tests:
+          - not_null
+
+      - name: is_suspended
+        description: True if the customer's account has been suspended by the platform.
+        tests:
+          - not_null
+
+      - name: signup_at
+        description: Timestamp when the customer registered on the platform.
+        tests:
+          - not_null
+
+      # Volume and financial totals are coalesced to 0 — always populated.
+      - name: total_jobs
+        description: Total number of jobs this customer has placed (completed + canceled).
+        tests:
+          - not_null
+
+      - name: completed_jobs
+        description: Number of jobs this customer had successfully completed.
+        tests:
+          - not_null
+
+      - name: canceled_jobs
+        description: Total number of jobs this customer was involved in that were canceled by either party.
+        tests:
+          - not_null
+
+      - name: customer_cancellations
+        description: Number of jobs this customer personally canceled.
+        tests:
+          - not_null
+
+      - name: total_gross_spend_usd
+        description: Sum of gross job revenue across all completed jobs placed by this customer.
+        tests:
+          - not_null
+
+      - name: total_net_spend_usd
+        description: Sum of net spend after refunds across all completed jobs placed by this customer.
+        tests:
+          - not_null
+
+      - name: jobs_with_refunds
+        description: Number of this customer's completed jobs that resulted in at least one refund.
+        tests:
+          - not_null
+
+      - name: total_refunded_usd
+        description: Total USD value refunded to this customer across all their jobs.
+        tests:
+          - not_null
+
+      - name: full_refund_jobs
+        description: Number of this customer's jobs where the entire amount was refunded.
+        tests:
+          - not_null
+
+      - name: health_segment
+        description: >
+          RFM-style health classification: 'suspended' for suspended accounts,
+          'never_ordered' for customers with no jobs, 'at_risk' for those inactive
+          90+ days, 'low_engagement' for those with a low completion rate or high
+          refund rate, 'high_value' for top spenders, and 'healthy' otherwise.
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['high_value', 'healthy', 'low_engagement', 'at_risk', 'never_ordered', 'suspended']
+
+      # completion_rate_pct, customer_cancel_rate_pct, avg_job_gross_usd,
+      # refund_rate_pct, first_job_at, last_job_at, last_completed_at
+      # are NULL for customers with no jobs — no not_null test applied.
+
+  - name: service_category_performance
+    description: >
+      One row per service category. Combines demand-side job metrics with
+      supply-side listing counts to support pricing and category investment
+      decisions.
+
+    columns:
+      - name: service_category
+        description: Primary key — one row per category.
+        tests:
+          - unique
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['cleaning', 'plumbing', 'landscaping', 'electrical']
+
+      # All columns are fully populated (no nullable aggregates at category
+      # grain — every category has both jobs and listings in this dataset).
+      - name: total_jobs
+        description: Total number of jobs placed in this service category (completed + canceled).
+        tests:
+          - not_null
+
+      - name: completed_jobs
+        description: Number of jobs in this category that were successfully completed.
+        tests:
+          - not_null
+
+      - name: canceled_jobs
+        description: Number of jobs in this category that were canceled by either party.
+        tests:
+          - not_null
+
+      - name: job_completion_rate_pct
+        description: Percentage of jobs in this category that were completed (completed_jobs / total_jobs × 100).
+        tests:
+          - not_null
+
+      - name: total_gross_revenue_usd
+        description: Total gross revenue across all completed jobs in this category.
+        tests:
+          - not_null
+
+      - name: total_net_revenue_usd
+        description: Total net revenue after refunds across all completed jobs in this category.
+        tests:
+          - not_null
+
+      - name: avg_job_gross_usd
+        description: Average gross revenue per completed job in this category.
+        tests:
+          - not_null
+
+      - name: total_platform_fee_usd
+        description: Total platform commission earned across all payouts in this category.
+        tests:
+          - not_null
+
+      - name: jobs_with_refunds
+        description: Number of completed jobs in this category that had at least one refund issued.
+        tests:
+          - not_null
+
+      - name: total_refunded_usd
+        description: Total USD value refunded to customers across jobs in this category.
+        tests:
+          - not_null
+
+      - name: refund_rate_pct
+        description: Percentage of completed jobs in this category that resulted in a refund.
+        tests:
+          - not_null
+
+      - name: full_refund_jobs
+        description: Number of jobs in this category where the full amount was refunded to the customer.
+        tests:
+          - not_null
+
+      - name: avg_hours_variance
+        description: >
+          Average difference between actual and estimated hours across completed
+          jobs in this category. Positive = ran over estimate; negative = under.
+        tests:
+          - not_null
+
+      - name: last_job_at
+        description: Timestamp of the most recently requested job in this category.
+        tests:
+          - not_null
+
+      - name: total_listings
+        description: Total number of service listings offered in this category.
+        tests:
+          - not_null
+
+      - name: available_listings
+        description: Number of listings in this category currently open for bookings.
+        tests:
+          - not_null
+
+      - name: contractor_count
+        description: Number of distinct contractors with at least one listing in this category.
+        tests:
+          - not_null
+
+      - name: active_contractor_count
+        description: Number of contractors in this category with at least one available listing.
+        tests:
+          - not_null
+
+      - name: min_hourly_rate_usd
+        description: Lowest hourly rate advertised among all listings in this category.
+        tests:
+          - not_null
+
+      - name: avg_hourly_rate_usd
+        description: Average hourly rate across all listings in this category.
+        tests:
+          - not_null
+
+      - name: max_hourly_rate_usd
+        description: Highest hourly rate advertised among all listings in this category.
+        tests:
+          - not_null
+
+      - name: budget_listing_pct
+        description: Percentage of listings in this category priced in the budget tier (<$75/hr).
+        tests:
+          - not_null
+
+      - name: standard_listing_pct
+        description: Percentage of listings in this category priced in the mid-range tier ($75–$124/hr).
+        tests:
+          - not_null
+
+      - name: premium_listing_pct
+        description: Percentage of listings in this category priced in the premium tier ($125+/hr).
+        tests:
+          - not_null
+
+      - name: completed_jobs_per_active_contractor
+        description: >
+          Supply-demand tension signal: ratio of completed jobs to active
+          contractors in this category. A high value signals unmet demand or
+          insufficient contractor capacity.
+        tests:
+          - not_null

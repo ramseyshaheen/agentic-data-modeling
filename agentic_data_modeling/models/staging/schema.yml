@@ -1,0 +1,214 @@
+version: 2
+
+models:
+  # Staging models are thin pass-throughs over raw parquet files.
+  # Tests here are deliberately minimal: PK integrity + not_null on columns
+  # that must never be missing at source. The goal is early failure at the
+  # ingestion boundary rather than discovering source issues inside mart runs.
+  #
+  # Enum values are NOT tested here — normalization (lower/trim) happens in
+  # the intermediate layer, and that is where accepted_values tests live.
+
+  - name: stg_jobs
+    description: Raw jobs data — one row per job request.
+    columns:
+      - name: job_id
+        description: Unique identifier for the job assigned by the source system.
+        tests:
+          - unique
+          - not_null
+      - name: service_id
+        description: References the service listing that was booked for this job.
+        tests:
+          - not_null
+      - name: contractor_id
+        description: References the contractor assigned to fulfil the job.
+        tests:
+          - not_null
+      - name: customer_id
+        description: References the customer who placed the job request.
+        tests:
+          - not_null
+      - name: job_requested_at
+        description: Timestamp when the customer submitted the job request.
+        tests:
+          - not_null
+      - name: job_status
+        description: >
+          Raw status string from the source system. May contain mixed case or
+          leading/trailing whitespace — normalised in int_jobs_enriched.
+        tests:
+          - not_null
+      - name: estimated_hours
+        description: Contractor's upfront estimate of how many hours the job will take.
+        tests:
+          - not_null
+
+  - name: stg_adjustments
+    description: Raw adjustments data — one row per refund or goodwill bonus.
+    columns:
+      - name: adjustment_id
+        description: Unique identifier for the adjustment record.
+        tests:
+          - unique
+          - not_null
+      - name: job_id
+        description: References the job this adjustment is applied against.
+        tests:
+          - not_null
+      - name: adjustment_date
+        description: Date the adjustment was issued.
+        tests:
+          - not_null
+      - name: adjustment_type
+        description: >
+          Raw type string from the source system (e.g. 'full_refund',
+          'partial_refund', 'goodwill_bonus'). Normalised in
+          int_adjustments_enriched.
+        tests:
+          - not_null
+      - name: adjustment_amount
+        description: >
+          Absolute monetary value of the adjustment in USD. Always a positive
+          magnitude — direction (refund vs. bonus) is encoded in adjustment_type.
+        tests:
+          - not_null
+
+  - name: stg_payouts
+    description: Raw payouts data — one row per payout issued to a contractor.
+    columns:
+      - name: payout_id
+        description: Unique identifier for the payout record.
+        tests:
+          - unique
+          - not_null
+      - name: contractor_id
+        description: References the contractor who received this payout.
+        tests:
+          - not_null
+      - name: job_id
+        description: References the job for which this payout was issued.
+        tests:
+          - not_null
+      - name: payout_date
+        description: Date the payout was processed and sent to the contractor.
+        tests:
+          - not_null
+      - name: commission_rate
+        description: >
+          Decimal commission rate applied to this payout (e.g. 0.20 = 20%).
+          Used to back-calculate the platform fee.
+        tests:
+          - not_null
+      - name: payout_amount
+        description: Amount paid out to the contractor in USD after platform commission.
+        tests:
+          - not_null
+      - name: payout_status
+        description: >
+          Raw status string from the source system ('completed' or 'pending').
+          Normalised in int_payouts_enriched.
+        tests:
+          - not_null
+
+  - name: stg_contractor_profiles
+    description: Raw contractor profile data — one row per contractor.
+    columns:
+      - name: user_id
+        description: >
+          User ID of the contractor. Contractors are a subset of users;
+          this ID is the join key to the users table.
+        tests:
+          - unique
+          - not_null
+      - name: contractor_tier
+        description: >
+          Raw tier string from the source system ('standard' or 'premium').
+          Normalised in int_contractor_profiles_enriched.
+        tests:
+          - not_null
+      - name: commission_rate
+        description: >
+          Platform commission rate for this contractor as a decimal
+          (e.g. 0.15 = 15%). Determines how much of each job's gross
+          amount the platform retains.
+        tests:
+          - not_null
+      - name: onboarding_completed
+        description: >
+          True if the contractor has finished the platform onboarding process.
+          Required alongside background_check_passed before a contractor can
+          accept jobs.
+        tests:
+          - not_null
+      - name: background_check_passed
+        description: >
+          True if the contractor's background check has been cleared.
+          Required alongside onboarding_completed before a contractor can
+          accept jobs.
+        tests:
+          - not_null
+
+  - name: stg_services
+    description: Raw service listings — one row per service offered by a contractor.
+    columns:
+      - name: service_id
+        description: Unique identifier for the service listing.
+        tests:
+          - unique
+          - not_null
+      - name: contractor_id
+        description: References the contractor who created and offers this service listing.
+        tests:
+          - not_null
+      - name: service_category
+        description: >
+          Raw category string from the source system (e.g. 'Plumbing',
+          'Cleaning'). Normalised to lowercase in int_services_enriched.
+        tests:
+          - not_null
+      - name: hourly_rate
+        description: Advertised hourly rate for this service in USD.
+        tests:
+          - not_null
+      - name: created_at
+        description: Timestamp when the contractor created this service listing.
+        tests:
+          - not_null
+      - name: is_available
+        description: >
+          True if the contractor is currently accepting bookings for this
+          service. False listings are hidden from customers but retained
+          for historical analysis.
+        tests:
+          - not_null
+
+  - name: stg_users
+    description: Raw user data — one row per user (customer or contractor).
+    columns:
+      - name: user_id
+        description: Unique identifier for the user across the platform.
+        tests:
+          - unique
+          - not_null
+      - name: signup_date
+        description: Date the user registered on the platform.
+        tests:
+          - not_null
+      - name: is_active
+        description: >
+          True if the user's account is in good standing and they can
+          place or receive jobs.
+        tests:
+          - not_null
+      - name: is_suspended
+        description: >
+          True if the user's account has been suspended by the platform.
+          A suspended user cannot place or receive jobs regardless of
+          is_active.
+        tests:
+          - not_null
+      - name: city
+        description: City where the user is located. May contain leading/trailing whitespace in source — trimmed in int_users_enriched.
+        tests:
+          - not_null

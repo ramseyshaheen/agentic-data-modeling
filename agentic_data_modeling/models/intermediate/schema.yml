@@ -1,0 +1,296 @@
+version: 2
+
+models:
+  # Intermediate models apply normalization, type casting, and derived logic
+  # over staging models. Tests here serve two purposes:
+  #
+  #   1. PK uniqueness/not_null — confirms no row duplication from the join
+  #      or CTE pattern in each model.
+  #
+  #   2. accepted_values on normalized enum columns — directly tests that
+  #      the lower(trim(...)) normalization and CASE WHEN derivations produce
+  #      the expected domain. If raw source values drift (e.g. 'Completed'
+  #      instead of 'completed'), these tests catch it here rather than
+  #      silently failing mart accepted_values downstream.
+  #
+  # not_null is applied to derived boolean columns (always computable from
+  # their inputs) and to key columns that downstream joins depend on.
+
+  - name: int_jobs_enriched
+    description: >
+      Jobs with normalized status, cast types, and derived boolean flags and
+      financial/duration metrics.
+
+    columns:
+      - name: job_id
+        description: Primary key — cast to bigint from source.
+        tests:
+          - unique
+          - not_null
+      - name: service_id
+        description: FK to the service listing booked for this job.
+        tests:
+          - not_null
+      - name: contractor_id
+        description: FK to the contractor assigned to this job.
+        tests:
+          - not_null
+      - name: customer_id
+        description: FK to the customer who placed this job request.
+        tests:
+          - not_null
+      - name: requested_at
+        description: Timestamp when the customer placed the job request, cast to timestamp.
+        tests:
+          - not_null
+      - name: job_status
+        description: Normalised (lower/trim) job status.
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['completed', 'canceled_by_customer', 'canceled_by_contractor']
+      - name: is_completed
+        description: True when job_status = 'completed'. Derived from the normalised status value.
+        tests:
+          - not_null
+      - name: is_canceled
+        description: >
+          True when the job was canceled by either party. Derived from
+          job_status — covers both 'canceled_by_customer' and
+          'canceled_by_contractor'.
+        tests:
+          - not_null
+      - name: estimated_hours
+        description: Contractor's upfront hour estimate, cast to decimal(10,2).
+        tests:
+          - not_null
+
+  - name: int_adjustments_enriched
+    description: >
+      Adjustments with normalised type, derived direction/boolean flags, and
+      cast financial amounts.
+
+    columns:
+      - name: adjustment_id
+        description: Primary key — cast to bigint from source.
+        tests:
+          - unique
+          - not_null
+      - name: job_id
+        description: FK to the job this adjustment is applied against.
+        tests:
+          - not_null
+      - name: adjusted_at
+        description: Timestamp when the adjustment was issued, cast from adjustment_date.
+        tests:
+          - not_null
+      - name: adjustment_type
+        description: Normalised adjustment type (lower/trim applied at source).
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['full_refund', 'partial_refund', 'goodwill_bonus']
+      - name: adjustment_direction
+        description: >
+          Derived from adjustment_type: 'debit' for refunds, 'credit' for
+          goodwill bonuses.
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['debit', 'credit']
+      - name: is_refund
+        description: True when the adjustment is either a full or partial refund back to the customer.
+        tests:
+          - not_null
+      - name: is_full_refund
+        description: True when the entire job amount was refunded to the customer.
+        tests:
+          - not_null
+      - name: is_partial_refund
+        description: True when only part of the job amount was refunded to the customer.
+        tests:
+          - not_null
+      - name: is_goodwill_bonus
+        description: True when the adjustment is a discretionary bonus paid to the contractor.
+        tests:
+          - not_null
+      - name: adjustment_amount_usd
+        description: >
+          Absolute monetary value of the adjustment in USD, cast to
+          decimal(10,2). Always positive — direction is encoded in
+          adjustment_direction.
+        tests:
+          - not_null
+
+  - name: int_payouts_enriched
+    description: >
+      Payouts with normalised status, cast types, and derived implied_gross
+      and platform_fee amounts.
+
+    columns:
+      - name: payout_id
+        description: Primary key — cast to bigint from source.
+        tests:
+          - unique
+          - not_null
+      - name: contractor_id
+        description: FK to the contractor who received this payout.
+        tests:
+          - not_null
+      - name: job_id
+        description: FK to the job for which this payout was issued.
+        tests:
+          - not_null
+      - name: paid_at
+        description: Timestamp when the payout was processed, cast from payout_date.
+        tests:
+          - not_null
+      - name: commission_rate
+        description: Platform commission rate applied to this payout, cast to decimal(5,4).
+        tests:
+          - not_null
+      - name: payout_amount_usd
+        description: Amount paid to the contractor in USD after platform commission, cast to decimal(10,2).
+        tests:
+          - not_null
+      - name: payout_status
+        description: Normalised payout status (lower/trim applied).
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['completed', 'pending']
+      - name: is_pending
+        description: True when payout_status = 'pending' — the payout has been calculated but not yet disbursed.
+        tests:
+          - not_null
+
+  - name: int_contractor_profiles_enriched
+    description: >
+      Contractor profiles with normalised tier, derived boolean flags, and
+      cast commission rates.
+
+    columns:
+      - name: contractor_id
+        description: Primary key — the contractor's user_id cast to bigint.
+        tests:
+          - unique
+          - not_null
+      - name: contractor_tier
+        description: Normalised contractor tier (lower/trim applied).
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['standard', 'premium']
+      - name: is_premium_tier
+        description: Derived from contractor_tier = 'premium'.
+        tests:
+          - not_null
+      - name: commission_rate
+        description: >
+          Platform commission rate for this contractor as a precise decimal,
+          cast to decimal(5,4). For example, 0.1500 = 15%.
+        tests:
+          - not_null
+      - name: commission_rate_pct
+        description: >
+          Commission rate expressed as a percentage (commission_rate × 100),
+          cast to decimal(5,2). Convenience field for display and reporting.
+        tests:
+          - not_null
+      - name: onboarding_completed
+        description: True if the contractor has completed the platform onboarding process.
+        tests:
+          - not_null
+      - name: background_check_passed
+        description: True if the contractor's background check has been cleared.
+        tests:
+          - not_null
+      - name: is_eligible_to_work
+        description: Derived as onboarding_completed AND background_check_passed.
+        tests:
+          - not_null
+
+  - name: int_services_enriched
+    description: >
+      Service listings with normalised category, cast hourly rate, and derived
+      rate_tier bucket.
+
+    columns:
+      - name: service_id
+        description: Primary key — cast to bigint from source.
+        tests:
+          - unique
+          - not_null
+      - name: contractor_id
+        description: FK to the contractor who offers this service listing.
+        tests:
+          - not_null
+      - name: service_category
+        description: Normalised service category (lower/trim applied).
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['cleaning', 'plumbing', 'landscaping', 'electrical']
+      - name: hourly_rate_usd
+        description: Advertised hourly rate for this service in USD, cast to decimal(10,2).
+        tests:
+          - not_null
+      - name: rate_tier
+        description: >
+          Derived rate tier bucket: budget (<$75/hr), mid_range ($75–$124),
+          premium ($125+).
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['budget', 'mid_range', 'premium']
+      - name: created_at
+        description: Timestamp when the contractor created this listing, cast to timestamp.
+        tests:
+          - not_null
+      - name: is_available
+        description: True if the contractor is currently accepting bookings for this service.
+        tests:
+          - not_null
+
+  - name: int_users_enriched
+    description: >
+      Users with normalised city whitespace, cast types, and derived
+      account_status label.
+
+    columns:
+      - name: user_id
+        description: Primary key — cast to bigint from source.
+        tests:
+          - unique
+          - not_null
+      - name: signup_at
+        description: Timestamp when the user registered on the platform, cast from signup_date.
+        tests:
+          - not_null
+      - name: is_active
+        description: True if the user's account is in good standing.
+        tests:
+          - not_null
+      - name: is_suspended
+        description: True if the user's account has been suspended by the platform.
+        tests:
+          - not_null
+      - name: account_status
+        description: >
+          Derived status label: 'suspended' > 'active' > 'inactive'.
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['active', 'inactive', 'suspended']
+      - name: city
+        description: City where the user is located, with leading/trailing whitespace trimmed.
+        tests:
+          - not_null

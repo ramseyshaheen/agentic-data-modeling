@@ -1,0 +1,52 @@
+version: 2
+
+sources:
+  - name: raw
+    description: >
+      Static parquet files simulating the raw operational data of a contractor
+      marketplace platform. Generated synthetically for evaluation purposes —
+      this is not a live pipeline, so freshness checks are intentionally omitted.
+      Each table corresponds to a single domain entity exported from the
+      hypothetical source system.
+
+    # Freshness checks are not configured because this is a static dataset used
+    # for agentic data modelling evaluation. The parquet files do not have a
+    # pipeline-managed loaded_at timestamp, and the data does not change between
+    # runs. Omitting freshness here is a deliberate choice, not an oversight.
+
+    tables:
+      - name: adjustments
+        description: >
+          One row per financial adjustment (refund or goodwill bonus) issued
+          against a completed or disputed job. Generated parquet file simulating
+          the adjustments ledger of the contractor marketplace.
+
+      - name: contractor_profiles
+        description: >
+          One row per contractor containing eligibility and commission attributes.
+          Generated parquet file simulating the contractor onboarding and profile
+          system of the marketplace.
+
+      - name: jobs
+        description: >
+          One row per job request submitted by a customer, including assignment,
+          status, and timing. Generated parquet file simulating the core job
+          management system of the contractor marketplace.
+
+      - name: payouts
+        description: >
+          One row per contractor payout issued for a completed job, including
+          commission rate and payout status. Generated parquet file simulating
+          the financial disbursement system of the marketplace.
+
+      - name: services
+        description: >
+          One row per service listing created by a contractor, representing a
+          specific category of work offered at an advertised hourly rate.
+          Generated parquet file simulating the service catalogue of the marketplace.
+
+      - name: users
+        description: >
+          One row per platform user (customers and contractors share this table).
+          Contains account status and location. Generated parquet file simulating
+          the user identity and account management system of the marketplace.

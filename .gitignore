@@ -1,0 +1,14 @@
+# Python
+venv/
+
+# DuckDB
+*.duckdb
+
+# dbt
+logs/
+agentic_data_modeling/target/
+agentic_data_modeling/.user.yml
+
+# OS
+.DS_Store
+Thumbs.db

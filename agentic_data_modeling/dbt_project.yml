@@ -1,0 +1,16 @@
+name: 'agentic_data_modeling'
+version: '1.0.0'
+config-version: 2
+
+profile: 'agentic_data_modeling'
+
+model-paths: ["models"]
+seed-paths: ["seeds"]
+test-paths: ["tests"]
+analysis-paths: ["analyses"]
+macro-paths: ["macros"]
+snapshot-paths: ["snapshots"]
+
+models:
+  agentic_data_modeling:
+    +materialized: view
