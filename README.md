@@ -2,7 +2,7 @@
 
 ---
 
-### 1. Overview** 
+### 1. Overview
 
 This project constructs a full dbt project (DAG) for a synthetic contractor marketplace (think TaskRabbit or Fiverr) using AI agents. It serves as a structured evaluation of Claude Code Opus 4.6 as the primary agent across four different development stages: intermediate modeling, mart modeling, dbt testing, and documentation. Each of the 14 key data modeling tasks within these stages were evaluated and logged to capture the agent’s behavior and ability to autonomously conduct production level data modeling work.
 
@@ -11,13 +11,13 @@ This project constructs a full dbt project (DAG) for a synthetic contractor mark
 ### 2. Dataset
 Synthetic custom marketplace dataset generated in Python with:
 
-6 source tables
-38 raw data fields
-~24,000 jobs
-~20,000 payouts
-~3,000 users
-Realistic scenarios including canceled jobs and partial refunds
-Simulated distribution of contract values
+- 6 source tables
+- 38 raw data fields
+- ~24,000 jobs
+- ~20,000 payouts
+- ~3,000 users
+- Realistic scenarios including canceled jobs and partial refunds
+- Simulated distribution of contract values
 
 All data is stored as Parquet and queried via DuckDB.
 
@@ -43,22 +43,26 @@ models/
 
 **Models (21 total)**
 
-6 Staging Models
+- 6 Staging Models
 
-6 Intermediate Models
+- 6 Intermediate Models
 
-9 Mart Models
+- 9 Mart Models
 
-3 Fact (FCT)
+- 3 Fact (FCT)
 
-3 Dimension (DIM)
+- 3 Dimension (DIM)
 
-3 Scorecard (Agent’s Open-Ended Models)
+ - 3 Scorecard (Agent’s Open-Ended Models)
 
 **Tests (287 total)**
+
 - Staging: 37 tests — PK integrity and source schema drift detection
+  
 - Intermediate: 66 tests — normalization validation and derived boolean checks
+  
 - Marts: 180 tests — referential integrity, null semantics, accepted values
+  
 - Singular: 4 tests — cross-column logical invariants (e.g. is_completed and is_canceled are mutually exclusive)
  
 ---
@@ -75,15 +79,21 @@ Each task followed the same structure: a written prompt → independent review o
 Initial written prompt and back and forth with the primary agent to produce output
 All requested permissions within the project were granted to the agent
 Review process with simulated multi-agent workflow
-Manual Review 
-Agent #2 Review → External 2nd Claude with separate contex window
-Agent #3 Review → External GPT-5.2 with separate context window
-Agent #2 Feedback → External 2nd Claude reviews notes from Agent #3 
-Manual Review of overall agentic feedback
-Selected feedback is passed back to the primary project agent and implemented 
+
+1) Manual Review
+
+2) Agent #2 Review → External 2nd Claude with separate contex window
+
+3) Agent #3 Review → External GPT-5.2 with separate context window
+
+4) Agent #2 Feedback → External 2nd Claude reviews notes from Agent #3 
+
+5) Manual Review of overall agentic feedback
+
+6) Selected feedback is passed back to the primary project agent and implemented
+
 Task output and feedback logged in evaluation_log.md
 
-The full evaluation log is included in this repo: [evaluation_log.md](./evaluation_log.md)
 ---
 
 ### 6. Key Findings
@@ -110,11 +120,11 @@ However, in two specific tasks, the agent did hallucinate raw data corruption an
 
 ### 8. Tech Stack
 
-dbt (data modeling platform)
-Python (data generation, evaluation framework)
-DuckDB (SQL execution)
-Anthropic Claude Opus 4.6 (Primary AI agent)
-GPT-5.2 (External model for additional verification)
+- dbt (data modeling platform)
+- Python (data generation, evaluation framework)
+- DuckDB (SQL execution)
+- Anthropic Claude Opus 4.6 (Primary AI agent)
+- GPT-5.2 (External model for additional verification)
 ---
 
 ### 9. How to Run the Project
