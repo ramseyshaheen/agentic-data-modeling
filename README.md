@@ -1,4 +1,4 @@
-### Agentic Data Modeling with dbt 
+# Agentic Data Modeling with dbt 
 
 ---
 
@@ -34,8 +34,7 @@ models/
 
 └── marts/ # 9 models — facts, dimensions, and business scorecards. Consumption-ready. One row per business entity.
 
-
-
+<img width="2257" height="1085" alt="image" src="https://github.com/user-attachments/assets/4e1574ef-0d48-4ae2-81ed-7652601b71a6" />
 
 ---
 
@@ -110,26 +109,26 @@ GPT-5.2 (External model for additional verification)
 ---
 
 **9. How to Run the Project**
-# Clone the repo
+1) Clone the repo
 git clone https://github.com/yourusername/agentic-data-modeling.git
 cd agentic-data-modeling
 
-# Create and activate virtual environment
+2) Create and activate virtual environment
 python -m venv venv
 .\venv\Scripts\Activate.ps1   # Windows
 source venv/bin/activate       # Mac/Linux
 
-# Install dependencies
+3) Install dependencies
 pip install dbt-duckdb
 
-# Move into the dbt project
+4) Move into the dbt project
 cd agentic_data_modeling
 
-# Run the project
+5) Run the project
 dbt run
 dbt test
 
-# View documentation
+6) View documentation
 dbt docs generate
 dbt docs serve
 
