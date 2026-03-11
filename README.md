@@ -99,15 +99,15 @@ Task output and feedback logged in evaluation_log.md
 ### 6. Key Findings
 **Successes**
 
- - Followed dbt conventions correctly throughout: ref(), layering, naming, and test structure required no correction across 14 tasks
- - Claude successfully explored data before modeling. The agent ran null counts and schema inspection before writing SQL in most tasks, unprompted 
+- Followed dbt conventions correctly throughout: ref(), layering, naming, and test structure required no correction across 14 tasks
+- Claude successfully explored data before modeling. The agent ran null counts and schema inspection before writing SQL in most tasks, unprompted 
 - Within a session, it retained context and referenced prior decisions when applying fixes
 - Generated comprehensive tests across staging, int, and mart models including 4 relevant singular tests. 
 - Given full creative freedom, Claude Code produced three effective open-ended business value models unprompted: contractor_performance_summary (contractor-grain volume and revenue scorecard), customer_health_summary (RFM-style segmentation), and service_category_performance (supply/demand tension by category). All three passed on the first run, required minimal correction, and could provide genuine business value. 
 
 **Issues Identified** 
-- Task 1.1 — Defects not caught by the primary agent: int_jobs_enriched passed dbt run with two business logic defects: a status normalization bug that would silently break boolean flags on certain strings, and a coalesce collapsing "no revenue" and "unknown revenue" into the same value. Neither caused a build failure. Both were caught only by GPT-5.2 during the simulated multi-agent review step.
- - Task 2.1 — Data misdiagnosis: Claude Code flagged 724 payout records as corrupted and recommended adding diagnostic columns to the fact model. All records were valid because the diagnosis failed to account for pre-payout adjustments. My manual review caught before anything progressed, but it required additional investigation to resolve. 
+- Task 1.1 - Defects not caught by the primary agent: int_jobs_enriched passed dbt run with two business logic defects: a status normalization bug that would silently break boolean flags on certain strings, and a coalesce collapsing "no revenue" and "unknown revenue" into the same value. Neither caused a build failure. Both were caught only by GPT-5.2 during the simulated multi-agent review step.
+ - Task 2.1 - Data misdiagnosis: Claude Code flagged 724 payout records as corrupted and recommended adding diagnostic columns to the fact model. All records were valid because the diagnosis failed to account for pre-payout adjustments. My manual review caught before anything progressed, but it required additional investigation to resolve. 
 - Cross-session memory loss: Patterns explicitly removed in one session reappeared in the next. Architectural decisions must be documented externally to persist which is the purpose of CLAUDE.md in this repo.
 
 
@@ -117,7 +117,7 @@ Overall, Claude Code Opus 4.6 proved quite capable when faced with the range of 
 
 However, in two specific tasks, the agent did hallucinate raw data corruption and incorrectly normalize fields showing the potential for significant errors in independent agentic outputs. A simulated multi-agent QA workflow did show potential in reducing these types of errors which could augment and extend the capability of agentic data modeling work. 
 
-
+---
 ### 8. Tech Stack
 
 - dbt (data modeling platform)
