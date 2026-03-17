@@ -1,14 +1,10 @@
 # Agentic Data Modeling with dbt 
 
----
-
-### 1. Overview
+## 1. Overview
 
 This project constructs a full dbt project (DAG) for a synthetic contractor marketplace (think TaskRabbit or Fiverr) using AI agents. It serves as a structured evaluation of Claude Code Opus 4.6 as the primary agent across four different development stages: intermediate modeling, mart modeling, dbt testing, and documentation. Each of the 14 key data modeling tasks within these stages were evaluated and logged to capture the agent’s behavior and ability to autonomously conduct production level data modeling work.
 
----
-
-### 2. Dataset
+## 2. Dataset
 Synthetic custom marketplace dataset generated in Python with:
 
 - 6 source tables
@@ -21,9 +17,7 @@ Synthetic custom marketplace dataset generated in Python with:
 
 All data is stored as Parquet and queried via DuckDB.
 
----
-
-### 3. Architecture
+## 3. Architecture
 
 4-layer dbt project (sources → staging → intermediate → marts)
 
@@ -37,9 +31,7 @@ models/
 
 <img width="2257" height="1085" alt="image" src="https://github.com/user-attachments/assets/4e1574ef-0d48-4ae2-81ed-7652601b71a6" />
 
----
-
-### 4. What Was Built
+## 4. What Was Built
 
 **Models (21 total)**
 
@@ -65,9 +57,7 @@ models/
   
 - Singular: 4 tests — cross-column logical invariants (e.g. is_completed and is_canceled are mutually exclusive)
  
----
-
-### 5. Evaluation Methodology
+## 5. Evaluation Methodology
 The primary agent (Claude Code Opus 4.6) was given 14 tasks across 4 stages of dbt development:
 
 - Stage 1 (Tasks 1.1–1.3): Intermediate modeling and refactoring
@@ -94,9 +84,7 @@ Review process with simulated multi-agent workflow
 
 Task output and feedback logged in evaluation_log.md
 
----
-
-### 6. Key Findings
+## 6. Key Findings
 **Successes**
 
 - Followed dbt conventions correctly throughout: ref(), layering, naming, and test structure required no correction across 14 tasks
@@ -110,24 +98,20 @@ Task output and feedback logged in evaluation_log.md
  - Task 2.1 - Data misdiagnosis: Claude Code flagged 724 payout records as corrupted and recommended adding diagnostic columns to the fact model. All records were valid because the diagnosis failed to account for pre-payout adjustments. My manual review caught before anything progressed, but it required additional investigation to resolve. 
 - Cross-session memory loss: Patterns explicitly removed in one session reappeared in the next. Architectural decisions must be documented externally to persist which is the purpose of CLAUDE.md in this repo.
 
-
----
-### 7. Conclusion
+## 7. Conclusion
 Overall, Claude Code Opus 4.6 proved quite capable when faced with the range of tasks required to build  production level dbt data models. The agent completed 12 out of 14 tasks correctly on its first dbt output following the initial prompt and conversation. It was particularly impressive when independently determining which downstream models to build, creating open-ended business valuable mart models, and generating comprehensive dbt tests. 
 
 However, in two specific tasks, the agent did hallucinate raw data corruption and incorrectly normalize fields showing the potential for significant errors in independent agentic outputs. A simulated multi-agent QA workflow did show potential in reducing these types of errors which could augment and extend the capability of agentic data modeling work. 
 
----
-### 8. Tech Stack
+## 8. Tech Stack
 
 - dbt (data modeling platform)
 - Python (data generation, evaluation framework)
 - DuckDB (SQL execution)
 - Anthropic Claude Opus 4.6 (Primary AI agent)
 - GPT-5.2 (External model for additional verification)
----
 
-### 9. How to Run the Project
+## 9. How to Run the Project
 1) Clone the repo
 git clone https://github.com/yourusername/agentic-data-modeling.git
 cd agentic-data-modeling
