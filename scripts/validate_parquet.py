@@ -16,14 +16,14 @@ for file in parquet_files:
         continue
 
     print(f"\n{'='*50}")
-    print(f"📄 FILE: {file}")
+    print(f" FILE: {file}")
     print(f"{'='*50}")
 
     df = pd.read_parquet(file)
 
     # --- Row Count ---
     print(f"\n Row Count: {len(df):,}")
-    print(f"📐 Column Count: {len(df.columns)}")
+    print(f" Column Count: {len(df.columns)}")
 
     # --- Schema / Column Types ---
     print(f"\n Schema (Column Names & Types):")

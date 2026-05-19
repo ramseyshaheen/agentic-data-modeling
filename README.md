@@ -113,7 +113,7 @@ However, in two specific tasks, the agent did hallucinate raw data corruption an
 
 ## 9. How to Run the Project
 1) Clone the repo
-git clone https://github.com/yourusername/agentic-data-modeling.git
+git clone https://github.com/ramseyshaheen/agentic-data-modeling.git
 cd agentic-data-modeling
 
 2) Create and activate virtual environment
